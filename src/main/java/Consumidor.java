@@ -1,50 +1,38 @@
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.DeliverCallback;
+import com.rabbitmq.client.*;
 
 import java.nio.charset.StandardCharsets;
 
 
 public class Consumidor {
+
+    private static final String EXCHANGE_NAME = "direct_logs";
+
     public static void main(String[] args) throws Exception {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("localhost");
 
-        final Connection connection = factory.newConnection();
+        Connection connection = factory.newConnection();
         Channel channel = connection.createChannel();
 
-        String NOME_FILA = "plica";
-        channel.queueDeclare(NOME_FILA, true, false, false, null);
-        System.out.println ("[*] Aguardando mensagens. Para sair, pressione CTRL + C");
+        channel.exchangeDeclare(EXCHANGE_NAME, "direct");
+        String queueName = channel.queueDeclare().getQueue();
 
-        channel.basicQos(1);
+        channel.queueBind(queueName, EXCHANGE_NAME, "fila_1");
+        channel.queueBind(queueName, EXCHANGE_NAME, "fila_2");
+
+        System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
 
         DeliverCallback callback = (consumerTag, delivery) -> {
             String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
 
-            System.out.println("[+] Mensagem recebida: " + message);
-            try {
-                doWork(message);
-            } finally {
-                System.out.println("[x] Processamento finalizado\n\n");
-                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-            }
+            System.out.println("[+] Mensagem recebida para " +
+                    delivery.getEnvelope().getRoutingKey() +
+                    ": " + message);
         };
-        channel.basicConsume(NOME_FILA, false, callback, consumerTag -> {
-            System.out.println("Cancelaram a fila: " + NOME_FILA);
+
+        channel.basicConsume(queueName, true, callback, consumerTag -> {
+            System.out.println("Cancelaram a fila: " + queueName);
         });
-    }
-    private static void doWork(String msg) {
-        for (char ch : msg.toCharArray()) {
-            if (ch == '.') {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException _ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
     }
 }
 
