@@ -8,28 +8,30 @@ import java.nio.charset.StandardCharsets;
 
 public class Consumidor {
     public static void main(String[] args) throws Exception {
-        ConnectionFactory connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost("localhost");
-        Connection conexao = connectionFactory.newConnection();
-        Channel canal = conexao.createChannel();
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost("localhost");
+
+        final Connection connection = factory.newConnection();
+        Channel channel = connection.createChannel();
 
         String NOME_FILA = "plica";
-        canal.queueDeclare(NOME_FILA, false, false, false, null);
+        channel.queueDeclare(NOME_FILA, true, false, false, null);
         System.out.println ("[*] Aguardando mensagens. Para sair, pressione CTRL + C");
 
+        channel.basicQos(1);
+
         DeliverCallback callback = (consumerTag, delivery) -> {
-            String mensagem = new String(delivery.getBody(), StandardCharsets.UTF_8);
-            System.out.println("[-] Mensagem recebida: " + mensagem);
+            String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+
+            System.out.println("[+] Mensagem recebida: " + message);
             try {
-                doWork(mensagem);
+                doWork(message);
             } finally {
                 System.out.println("[x] Processamento finalizado\n\n");
-                canal.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
             }
         };
-
-        // fila, noAck, callback, callback em caso de cancelamento (por exemplo, a fila foi deletada)
-        canal.basicConsume(NOME_FILA, true, callback, consumerTag -> {
+        channel.basicConsume(NOME_FILA, false, callback, consumerTag -> {
             System.out.println("Cancelaram a fila: " + NOME_FILA);
         });
     }
